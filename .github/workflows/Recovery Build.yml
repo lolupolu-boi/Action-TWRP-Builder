@@ -81,7 +81,7 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Nested Zip Device Tree Extractor & Argument Fix
+    - name: Nested Zip Device Tree Extractor & Core Arguments Fix
       run: |
         echo "=== Processing custom configurations archive ==="
         mkdir -p temp_unzip
@@ -96,9 +96,10 @@ jobs:
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "True configurations directory verified at: $TRUE_TREE_DIR"
         
-        echo "=== Fixing Android 10 bootimg argument mismatch ==="
-        # Changes --dtb parameter to --dt so the built-in packaging utility processes it smoothly
-        sed -i 's/--dtb/--dt/g' "$TRUE_TREE_DIR/BoardConfig.mk"
+        echo "=== Stripping conflicting DTB macro arguments for Header V2 compliance ==="
+        # Completely removes custom inline DTB lines that cause the v2 boot header checks to explode
+        sed -i '/BOARD_MKBOOTIMG_ARGS/s/--dtb[^ ]*//g' "$TRUE_TREE_DIR/BoardConfig.mk"
+        sed -i '/BOARD_MKBOOTIMG_ARGS/s/--dt[^ ]*//g' "$TRUE_TREE_DIR/BoardConfig.mk"
         
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
         cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
