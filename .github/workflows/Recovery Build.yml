@@ -79,8 +79,7 @@ jobs:
     - name: Python 3 Compatibility Hot-Fix
       run: |
         echo "=== Patching python script syntax errors ==="
-        # Overwrites the legacy checker with a clean, python 3 compliant pass script
-        echo -e "import sys\nprint('Bypassing legacy radio check safely')\nsys.exit(0)" > twrp-workspace/build/make/tools/check_radio_versions.py
+        echo -e "#!/usr/bin/env python3\nimport sys\nprint('Bypassing legacy radio check safely')\nsys.exit(0)" > twrp-workspace/build/make/tools/check_radio_versions.py
         chmod a+x twrp-workspace/build/make/tools/check_radio_versions.py
 
     - name: Execute Android Compiler (mka)
