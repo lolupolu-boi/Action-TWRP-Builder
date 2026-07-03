@@ -96,10 +96,13 @@ jobs:
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "True configurations directory verified at: $TRUE_TREE_DIR"
         
-        echo "=== Stripping conflicting DTB macro arguments for Header V2 compliance ==="
-        # Completely removes custom inline DTB lines that cause the v2 boot header checks to explode
-        sed -i '/BOARD_MKBOOTIMG_ARGS/s/--dtb[^ ]*//g' "$TRUE_TREE_DIR/BoardConfig.mk"
-        sed -i '/BOARD_MKBOOTIMG_ARGS/s/--dt[^ ]*//g' "$TRUE_TREE_DIR/BoardConfig.mk"
+        echo "=== Cleaning out broken inline arguments ==="
+        # Completely strips out any conflicting arguments from the command generation block entirely
+        sed -i '/BOARD_MKBOOTIMG_ARGS/d' "$TRUE_TREE_DIR/BoardConfig.mk"
+        
+        echo "=== Injecting valid, clean parameters ==="
+        # Forces explicit clean image arguments matching the device's true alignment needs without inline path conflicts
+        echo 'BOARD_MKBOOTIMG_ARGS := --base 0x40078000 --pagesize 2048 --cmdline "bootopt=64S3,32N2,64N2 buildvariant=user buildvariant=eng" --os_version 16.1.0 --os_patch_level 2099-12-31 --header_version 2 --ramdisk_offset 0x11a88000 --tags_offset 0x07808000' >> "$TRUE_TREE_DIR/BoardConfig.mk"
         
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
         cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
@@ -124,3 +127,4 @@ jobs:
         name: twrp-compiled-image
         path: twrp-workspace/out/target/product/${{ env.DEVICE_NAME }}/recovery.img
         if-no-files-found: error
+        
