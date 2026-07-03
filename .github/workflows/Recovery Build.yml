@@ -15,14 +15,13 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Maximize Build Space
-      uses: easimon/maximize-build-space@v10
-      with:
-        root-reserve-mb: 5120
-        swap-size-mb: 1024
-        remove-dotnet: 'true'
-        remove-android: 'true'
-        remove-haskell: 'true'
+    - name: Free Up Disk Space Natively
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -55,14 +54,9 @@ jobs:
     - name: Unpack Nested Local Device Tree Zip
       run: |
         sudo apt-get install -y unzip
-        # Unzip to a temporary directory first to bypass the double nesting
         mkdir -p temp_unzip
         unzip achilles6_row_call.zip -d temp_unzip/
-        
-        # Ensure target build directory exists
         mkdir -p twrp-workspace/device/lenovo/
-        
-        # Move the inner folder contents directly into the proper device target path
         cp -r temp_unzip/achilles6_row_call twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
 
     - name: Build TWRP
