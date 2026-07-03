@@ -24,18 +24,29 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/share/swift
         sudo docker image prune --all --force
 
-    - name: Install Safe Build Dependencies
+    - name: Force Environment to Native Python 2
       run: |
-        echo "=== Breaking apt locks if any ==="
+        echo "=== Clearing existing package tool locks ==="
         sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/cache/apt/archives/lock
         sudo dpkg --configure -a
         
-        echo "=== Installing required frameworks safely ==="
+        echo "=== Attaching Universe package source ==="
+        sudo add-apt-repository universe
         sudo apt-get update
+        
+        echo "=== Installing full Python 2.7 environment ==="
+        sudo apt-get install -y --no-install-recommends python2 python2-dev
+        
+        echo "=== Mapping system paths directly to Python 2 ==="
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
+        python --version
+
+    - name: Install Critical Build Utilities
+      run: |
         sudo apt-get install -y --no-install-recommends \
           build-essential git-core gnupg flex bison gperf zip curl zlib1g-dev \
           x11proto-core-dev libx11-dev libgl1-mesa-dev libxml2-utils xsltproc \
-          unzip bc cpio lzop texinfo rsync python3 python-is-python3 libncurses5
+          unzip bc cpio lzop texinfo rsync libncurses5
 
     - name: Install and Configure Google Repo Tool
       run: |
@@ -60,27 +71,26 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Smart Unpack Device Tree (Auto-Detect Folders)
+    - name: Safe Deep-Unpack Device Tree (Nested Folders Bypass)
       run: |
-        echo "=== Unpacking archive ==="
+        echo "=== Extracting custom device configurations ==="
         mkdir -p temp_unzip
         unzip -q achilles6_row_call.zip -d temp_unzip/
         
+        echo "=== Searching inside nested directories for core definitions ==="
         CONFIG_PATH=$(find temp_unzip -name "BoardConfig.mk" | head -n 1)
         if [ -z "$CONFIG_PATH" ]; then
-          echo "ERROR: BoardConfig.mk not found anywhere inside the uploaded zip file!"
+          echo "ERROR: BoardConfig.mk was not discovered inside your zip package!"
           exit 1
         fi
         
-        TREE_ROOT=$(dirname "$CONFIG_PATH")
+        # Pulls the exact path containing your configurations, bypassing folder redundancy
+        TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
+        echo "Located internal source tree directory at: $TRUE_TREE_DIR"
+        
+        echo "=== Allocating configs to target workspace directory ==="
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
-        cp -r "$TREE_ROOT"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
-
-    - name: Python 3 Compatibility Hot-Fix
-      run: |
-        echo "=== Patching python script syntax errors ==="
-        echo -e "#!/usr/bin/env python3\nimport sys\nprint('Bypassing legacy radio check safely')\nsys.exit(0)" > twrp-workspace/build/make/tools/check_radio_versions.py
-        chmod a+x twrp-workspace/build/make/tools/check_radio_versions.py
+        cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
 
     - name: Execute Android Compiler (mka)
       run: |
