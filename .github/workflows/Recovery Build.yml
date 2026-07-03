@@ -71,7 +71,7 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Safe Deep-Unpack Device Tree (Nested Folders & Argument Bypass)
+    - name: Safe Deep-Unpack Device Tree (Nested Folders Bypass)
       run: |
         echo "=== Extracting custom device configurations ==="
         mkdir -p temp_unzip
@@ -87,13 +87,23 @@ jobs:
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "Located internal source tree directory at: $TRUE_TREE_DIR"
         
-        echo "=== Patching mkbootimg argument flag mismatch ==="
-        # Swaps --dtb out for --dt to comply with the Android 9 compilation host tools
-        sed -i 's/--dtb/--dt/g' "$TRUE_TREE_DIR/BoardConfig.mk"
-        
         echo "=== Allocating configs to target workspace directory ==="
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
         cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
+
+    - name: Upgrade Packaging Tool to Android 10 (Header V2 Support)
+      run: |
+        echo "=== Fetching official Android 10 mkbootimg engine ==="
+        curl -sL "https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/android-10.0.0_r47/mkbootimg.py" -o mkbootimg_android10.py
+        
+        echo "=== Injecting upgraded script into the compiler paths ==="
+        # Locates and swaps the old tool script out for the modern version natively
+        TARGET_BIN=$(find twrp-workspace -name "mkbootimg" -type f | grep -v "out/")
+        for file in $TARGET_BIN; do
+          cp mkbootimg_android10.py "$file"
+          chmod a+x "$file"
+          echo "Successfully patched: $file"
+        done
 
     - name: Execute Android Compiler (mka)
       run: |
