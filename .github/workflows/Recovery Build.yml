@@ -71,7 +71,7 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Safe Deep-Unpack Device Tree (Nested Folders Bypass)
+    - name: Safe Deep-Unpack Device Tree (Nested Folders & Argument Bypass)
       run: |
         echo "=== Extracting custom device configurations ==="
         mkdir -p temp_unzip
@@ -84,9 +84,12 @@ jobs:
           exit 1
         fi
         
-        # Pulls the exact path containing your configurations, bypassing folder redundancy
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "Located internal source tree directory at: $TRUE_TREE_DIR"
+        
+        echo "=== Patching mkbootimg argument flag mismatch ==="
+        # Swaps --dtb out for --dt to comply with the Android 9 compilation host tools
+        sed -i 's/--dtb/--dt/g' "$TRUE_TREE_DIR/BoardConfig.mk"
         
         echo "=== Allocating configs to target workspace directory ==="
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
