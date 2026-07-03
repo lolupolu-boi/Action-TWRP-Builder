@@ -1,4 +1,4 @@
-name: Build TWRP Recovery via Zip Method
+name: Ultimate Bulletproof TWRP Builder
 
 on:
   workflow_dispatch:
@@ -15,60 +15,100 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Free Up Disk Space Natively
-      run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-
-    - name: Checkout Code
+    - name: Checkout Repository Code
       uses: actions/checkout@v4
 
-    - name: Install Build Dependencies
+    - name: Deep Clean & Maximize Storage Natively
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gperf gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip bc cpio textinfo
+        echo "=== Clearing unwanted system runtimes ==="
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/share/swift
+        sudo docker image prune --all --force
+        df -h
 
-    - name: Set Up Repo Tool
+    - name: Break System Package Locks & Install Dependencies
       run: |
+        echo "=== Killing background update locks ==="
+        sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/cache/apt/archives/lock
+        sudo dpkg --configure -a
+        
+        echo "=== Installing required compiler frameworks ==="
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev \
+          gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev \
+          x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev \
+          libxml2-utils xsltproc unzip bc cpio lzop lnum textinfo \
+          rsync python3 python-is-python3
+
+    - name: Install and Configure Google Repo Tool
+      run: |
+        echo "=== Setting up repo environment ==="
         mkdir -p ~/bin
-        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
         sudo ln -sf ~/bin/repo /usr/bin/repo
+        
+        git config --global user.name "aayus"
+        git config --global user.email "aayus@example.com"
+        git config --global color.ui false
 
-    - name: Initialize Manifest
+    - name: Initialize TWRP Build Tree Source
       run: |
         mkdir twrp-workspace
         cd twrp-workspace
-        git config --global user.name "aayus"
-        git config --global user.email "aayus@example.com"
+        echo "=== Initializing manifest ==="
         repo init --depth=1 -u ${{ env.MANIFEST_URL }} -b ${{ env.MANIFEST_BRANCH }}
 
-    - name: Sync Source Code
+    - name: Sync Source Code (Smart Sync)
       run: |
         cd twrp-workspace
+        echo "=== Fetching source streams ==="
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Unpack Nested Local Device Tree Zip
+    - name: Smart Unpack Device Tree (Auto-Detect Folders)
       run: |
-        sudo apt-get install -y unzip
+        echo "=== Unpacking archive ==="
         mkdir -p temp_unzip
-        unzip achilles6_row_call.zip -d temp_unzip/
-        mkdir -p twrp-workspace/device/lenovo/
-        cp -r temp_unzip/achilles6_row_call twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
+        unzip -q achilles6_row_call.zip -d temp_unzip/
+        
+        echo "=== Dynamically locating BoardConfig.mk ==="
+        # Locates BoardConfig regardless of how many nested folders Windows generated
+        CONFIG_PATH=$(find temp_unzip -name "BoardConfig.mk" | head -n 1)
+        if [ -z "$CONFIG_PATH" ]; then
+          echo "ERROR: BoardConfig.mk not found anywhere inside the uploaded zip file!"
+          exit 1
+        fi
+        
+        # Determine the true directory where the config files live
+        TREE_ROOT=$(dirname "$CONFIG_PATH")
+        echo "Found valid source directory at: $TREE_ROOT"
+        
+        echo "=== Aligning files into compile tree ==="
+        mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
+        cp -r "$TREE_ROOT"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
+        
+        echo "=== Verifying target folder content ==="
+        ls -la twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
 
-    - name: Build TWRP
+    - name: Execute Android Compiler (mka)
       run: |
         cd twrp-workspace
+        echo "=== Launching build environment ==="
         export ALLOW_MISSING_DEPENDENCIES=true
+        export LC_ALL=C
         source build/envsetup.sh
+        
+        echo "=== Choosing target profile ==="
         lunch ${{ env.MAKEFILE_NAME }}-eng
+        
+        echo "=== Compiling binaries ==="
         mka ${{ env.TARGET }} -j$(nproc --all)
 
-    - name: Upload Compiled Recovery
+    - name: Verify and Upload Compiled Recovery Image
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: twrp-compiled-image
         path: twrp-workspace/out/target/product/${{ env.DEVICE_NAME }}/recovery.img
+        if-no-files-found: error
+        
