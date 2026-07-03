@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360 # Maximum allowed runner limit (6 hours)
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository Code
@@ -24,9 +24,8 @@ jobs:
         echo "=== Aggressively freeing up server space ==="
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/share/swift /usr/local/share/boost
         sudo docker image prune --all --force
-        df -h
 
-    - name: Setup Compiler Cache (Failsafe)
+    - name: Setup Compiler Cache
       uses: actions/cache@v4
       with:
         path: |
@@ -82,7 +81,7 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Nested Zip Device Tree Extractor
+    - name: Nested Zip Device Tree Extractor & Argument Fix
       run: |
         echo "=== Processing custom configurations archive ==="
         mkdir -p temp_unzip
@@ -97,22 +96,14 @@ jobs:
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "True configurations directory verified at: $TRUE_TREE_DIR"
         
+        echo "=== Fixing Android 10 bootimg argument mismatch ==="
+        # Changes --dtb parameter to --dt so the built-in packaging utility processes it smoothly
+        sed -i 's/--dtb/--dt/g' "$TRUE_TREE_DIR/BoardConfig.mk"
+        
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
         cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
 
-    - name: Upgrade Toolchain Engine to Android 10 (Failsafe)
-      run: |
-        echo "=== Downloading Android 10 layout generator ==="
-        curl -sL "https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/android-10.0.0_r47/mkbootimg.py" -o mkbootimg_android10.py
-        
-        TARGET_BIN=$(find twrp-workspace -name "mkbootimg" -type f | grep -v "out/")
-        for file in $TARGET_BIN; do
-          cp mkbootimg_android10.py "$file"
-          chmod a+x "$file"
-          echo "Patched layout packager: $file"
-        done
-
-    - name: Trigger Android C++ Compiler
+    - name: Execute Android Compiler (mka)
       run: |
         cd twrp-workspace
         export ALLOW_MISSING_DEPENDENCIES=true
