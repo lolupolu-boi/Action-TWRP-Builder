@@ -81,7 +81,7 @@ jobs:
         cd twrp-workspace
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Nested Zip Device Tree Extractor & Core Arguments Fix
+    - name: Nested Zip Device Tree Extractor & Native Prebuilt Linker
       run: |
         echo "=== Processing custom configurations archive ==="
         mkdir -p temp_unzip
@@ -96,13 +96,14 @@ jobs:
         TRUE_TREE_DIR=$(dirname "$CONFIG_PATH")
         echo "True configurations directory verified at: $TRUE_TREE_DIR"
         
-        echo "=== Cleaning out broken inline arguments ==="
-        # Completely strips out any conflicting arguments from the command generation block entirely
+        echo "=== Stripping problematic inline parameters ==="
         sed -i '/BOARD_MKBOOTIMG_ARGS/d' "$TRUE_TREE_DIR/BoardConfig.mk"
         
-        echo "=== Injecting valid, clean parameters ==="
-        # Forces explicit clean image arguments matching the device's true alignment needs without inline path conflicts
-        echo 'BOARD_MKBOOTIMG_ARGS := --base 0x40078000 --pagesize 2048 --cmdline "bootopt=64S3,32N2,64N2 buildvariant=user buildvariant=eng" --os_version 16.1.0 --os_patch_level 2099-12-31 --header_version 2 --ramdisk_offset 0x11a88000 --tags_offset 0x07808000' >> "$TRUE_TREE_DIR/BoardConfig.mk"
+        echo "=== Mapping native vendor binary pathways cleanly ==="
+        # Explicitly declares standard compilation macros so it binds your actual prebuilt image data safely
+        echo 'BOARD_MKBOOTIMG_ARGS := --base 0x40078000 --pagesize 2048 --cmdline "bootopt=64S3,32N2,64N2 buildvariant=user buildvariant=eng" --os_version 10.0.0 --os_patch_level 2024-05-05 --header_version 2 --ramdisk_offset 0x11a88000 --tags_offset 0x07808000' >> "$TRUE_TREE_DIR/BoardConfig.mk"
+        echo 'BOARD_PREBUILT_DTBIMAGE := device/lenovo/achilles6_row_call/prebuilt/dtb.img' >> "$TRUE_TREE_DIR/BoardConfig.mk"
+        echo 'TARGET_PREBUILT_KERNEL := device/lenovo/achilles6_row_call/prebuilt/kernel' >> "$TRUE_TREE_DIR/BoardConfig.mk"
         
         mkdir -p twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}
         cp -r "$TRUE_TREE_DIR"/* twrp-workspace/device/lenovo/${{ env.DEVICE_NAME }}/
@@ -127,4 +128,3 @@ jobs:
         name: twrp-compiled-image
         path: twrp-workspace/out/target/product/${{ env.DEVICE_NAME }}/recovery.img
         if-no-files-found: error
-        
